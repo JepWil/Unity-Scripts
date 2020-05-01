@@ -1,199 +1,178 @@
-﻿using UnityEngine;
-using UnityEngine.Audio;
+﻿using UnityEngine.Audio;
+using System;
+using UnityEngine;
 using System.Collections;
-using System.Collections.Generic;
-#pragma warning disable 0649
-
-[System.Serializable]
-public class RollOff
-{
-    public AudioRolloffMode RollOffMode;
-    public float MinCeaseDistance = 0.0f;
-    public float MaxDistance = 0.0f;
-}
-
-[System.Serializable]
-public class GeneralAudio
-{
-    public float volume = 0.7f;
-    [Range(0.5f, 1.5f)]
-    public float pitch = 1;
-    [Range(0f, 0.5f)]
-    public float VolumeRandomness = 0.1f;
-    [Range(0f, 0.5f)]
-    public float PitchRandomness = 0.1f;
-    [Range(-1.0f, 1.0f)]
-    public float StereoPan = 0;
-    public bool Mute = false;
-    public bool Loop = false;
-    public AudioMixerGroup output;
-}
-
-[System.Serializable]
-public class Sound
-{
-    public string name;
-    public AudioClip clip;
-    [Range(0f, 1f)]
-    private AudioSource source;
-    public GeneralAudio GeneralAudioSettings;
-    public RollOff RollOffSettings;
-
-    public void SetSource (AudioSource _source)
-    {
-        source = _source;
-        source.clip = clip;
-    }
-
-    public AudioSource GetSource()
-    {
-        return source;
-    }
-
-    public void Play()
-    {
-        source.volume = GeneralAudioSettings.volume * (1 + Random.Range(-GeneralAudioSettings.VolumeRandomness / 2f, GeneralAudioSettings.VolumeRandomness / 2));
-        source.pitch = GeneralAudioSettings.pitch * (1 + Random.Range(-GeneralAudioSettings.PitchRandomness / 2f, GeneralAudioSettings.PitchRandomness / 2)); ;
-        source.panStereo = GeneralAudioSettings.StereoPan;
-        source.mute = GeneralAudioSettings.Mute;
-        source.loop = GeneralAudioSettings.Loop;
-        source.rolloffMode = RollOffSettings.RollOffMode;
-        source.minDistance = RollOffSettings.MinCeaseDistance;
-        source.maxDistance = RollOffSettings.MaxDistance;
-        source.outputAudioMixerGroup = GeneralAudioSettings.output;
-        source.Play();
-    }
-
-    public void Stop()
-    {
-        source.Stop();
-    }
-}
 
 public class SoundManager : MonoBehaviour
 {
-    public static SoundManager instance;
+    public Sound[] sound;
 
-
-    [SerializeField]
-    Sound[] sounds;
-
-    IEnumerator SFXCoroutineNeg(int soundindex, float changeamount)
+	// Use this for initialization
+	void Awake ()
     {
-        //Debug.Log("Entered Neg Coroutine");
-        float time = 0.0f;
-        while (time < 500.0f && sounds[soundindex].GetSource().volume >= 0.03f)
+		foreach (Sound s in sound)
         {
-            time += Time.deltaTime;
-            sounds[soundindex].GetSource().volume -= changeamount;
-            yield return null;
-        }
-    }
+            DontDestroyOnLoad(gameObject);
 
+            s.source = gameObject.AddComponent<AudioSource>();
+            s.source.clip = s.clip;
+            s.source.volume = s.volume;
+            s.source.pitch = s.pitch;
+            s.source.loop = s.loop;
+            s.source.outputAudioMixerGroup = s.output;
+            
+}
+	}
 
-    IEnumerator SFXCoroutinePos(int soundindex, float changeamount)
+    private void Start()
     {
-        //Debug.Log("Entered Pos Coroutine");
-        float time = 0.0f;
-        while (time < 500.0f && sounds[soundindex].GetSource().volume <= 0.27f)
-        {
-            time += Time.deltaTime;
-            sounds[soundindex].GetSource().volume += changeamount;
-            yield return null;
-        }
         
     }
 
-    void Awake()
+    public void Play(string name)
     {
-        DontDestroyOnLoad(transform.gameObject);
-        if (instance != null)
+       Sound s = Array.Find(sound, sound => sound.name == name);
+        if (s == null)
         {
-            Debug.LogError("More than one SoundManager in the scene");
+            Debug.LogWarning("Sound: " + name + " was not found!");
+            Debug.Break();
+            return;
         }
+       s.source.Play();
+    }
+
+    public void StopSound(string name)
+    {
+        Sound s = Array.Find(sound, sound => sound.name == name);
+        if (s == null)
+        {
+            Debug.LogWarning("Sound: " + name + " was not found!");
+            return;
+        }
+        s.source.Stop();
+    }
+    
+    public void SetStereoPan(string name, int panDir) // "name" is the name of the file, "panDir" is either left(1) or right(2) if nothing is specified pan is center
+    {
+        Sound s = Array.Find(sound, sound => sound.name == name);
+        if (s == null)
+        {
+            Debug.LogWarning("Sound: " + name + " was not found!");
+            return;
+        }
+        if (panDir == 1)
+            s.source.panStereo = -1.0f;
+        else if (panDir == 2)
+            s.source.panStereo = 1.0f;
         else
+            s.source.panStereo = 0;
+    }
+
+    public void StopLoop(string name) // loop = false
+    {
+        Sound s = Array.Find(sound, sound => sound.name == name);
+        if (s == null)
         {
-            instance = this;
+            Debug.LogWarning("Sound: " + name + " was not found!");
+            return;
+        }
+        s.source.loop = false;
+    }
+
+    public void StartLoop(string name) // loop = true
+    {
+        Sound s = Array.Find(sound, sound => sound.name == name);
+        if (s == null)
+        {
+            Debug.LogWarning("Sound: " + name + " was not found!");
+            return;
+        }
+        s.source.loop = true;
+    }
+
+    public void ChangePitch(string name, float newPitch) // += 2nd param to the sounds pitch
+    {
+        Sound s = Array.Find(sound, sound => sound.name == name);
+        if (s == null)
+        {
+            Debug.LogWarning("Sound: " + name + " was not found!");
+            return;
+        }
+        s.source.pitch += newPitch;
+    }
+
+    public bool GetPlayState(string name) // returns true if the current sound is being played
+    {
+        Sound s = Array.Find(sound, sound => sound.name == name);
+        if (s == null)
+        {
+            Debug.LogWarning("Sound: " + name + " was not found!");
+        }
+        return s.source.isPlaying;
+    }
+
+    public float GetLength(string name) // length of param's clip in seconds
+    {
+        Sound s = Array.Find(sound, sound => sound.name == name);
+        if (s == null)
+        {
+            Debug.LogWarning("Sound: " + name + " was not found!");
+        }
+        return s.source.clip.length;
+    }
+
+    public float GetTime(string name) // length of param's clip in seconds
+    {
+        Sound s = Array.Find(sound, sound => sound.name == name);
+        if (s == null)
+        {
+            Debug.LogWarning("Sound: " + name + " was not found!");
+        }
+        return s.source.time;
+    }
+
+    public void StopAllSound() // Stops current playback of ALL sounds
+    {
+        foreach (Sound s in sound)
+        {
+            s.source.Stop();
         }
     }
 
-    void Start()
+    public void FadeOut(string name, float fadeSeconds) // Fades the sound by subtracting volume over time
     {
-        for (int i = 0; i < sounds.Length; i++)
+        Sound s = Array.Find(sound, sound => sound.name == name);
+        if (s == null)
         {
-            GameObject go = new GameObject("Sound " + i + " " + sounds[i].name);
-            go.transform.SetParent(this.transform);
-            sounds[i].SetSource(go.AddComponent<AudioSource>());
+            Debug.LogWarning("Sound: " + name + " was not found!");
         }
-        PlaySound("Music");
+        StartCoroutine(FadeOutRoutine(s.source, fadeSeconds));
     }
 
-    public void PlaySound(string _name)
+    public void ChangeOutput(string name, AudioMixerGroup AMG)
     {
-        for (int i = 0; i < sounds.Length; i++)
+        Sound s = Array.Find(sound, sound => sound.name == name);
+        if (s == null)
         {
-            if (sounds[i].name == _name)
-            {
-                sounds[i].Play();
-                return;
-            }
+            Debug.LogWarning("Sound: " + name + " was not found!");
         }
-
-        Debug.LogWarning("AudioManager could not find the requested sound: " + _name);
+        s.source.outputAudioMixerGroup = AMG;
     }
 
-    public Sound GetSoundAtIndex(int index)
+    IEnumerator FadeOutRoutine(AudioSource audioSource, float fadeTime) // Fades the given audioSource over fadeTime seconds
     {
-        return sounds[index];
-    }
+        float volume = audioSource.volume;
 
-    public Sound GetSoundWithName(string soundname)
-    {
-        for (int i = 0; i < sounds.Length; i++)
+        while (audioSource.volume > 0)
         {
-            if (sounds[i].name == soundname)
-            {
-                //Debug.Log("entered");
-                return sounds[i];
-            }
-        }
-        return null;
-    }
+            audioSource.volume -= volume * Time.deltaTime / fadeTime;
 
-    public void StopSound(string _name)
-    {
-        for (int i = 0; i < sounds.Length; i++)
-        {
-            if (sounds[i].name == _name)
-            {
-                sounds[i].Stop();
-                return;
-            }
+            yield return null;
         }
 
-        Debug.LogWarning("AudioManager could not find the requested sound: " + _name);
+        audioSource.Stop();
+        audioSource.volume = volume;
     }
 
-    public void DialogueEffect(string _music, bool _active)
-    {
-        for (int i = 0; i < sounds.Length; i++)
-        {
-            if (sounds[i].name == _music)
-            {
-                if (_active)
-                {
-                    sounds[i].GeneralAudioSettings.output.audioMixer.SetFloat("LowpassEffect", 1.0f);
-                    StartCoroutine(SFXCoroutineNeg(i, 0.002f));
-                }
 
-                else
-                {
-                    sounds[i].GeneralAudioSettings.output.audioMixer.SetFloat("LowpassEffect", -80.0f);
-                    StartCoroutine(SFXCoroutinePos(i, 0.002f));
-                }
-            }
-        }
-    }
 }
-
-#pragma warning restore     0649
